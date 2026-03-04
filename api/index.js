@@ -24,7 +24,7 @@ app.use('/movies', movieRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.json({ status: 'OK', message: 'KodFlix API is running' });
+    res.json({ status: 'OK', message: 'KodFlix API is running', timestamp: new Date().toISOString() });
 });
 
 // 404 handler
