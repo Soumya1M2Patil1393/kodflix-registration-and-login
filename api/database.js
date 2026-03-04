@@ -7,29 +7,44 @@ const dbDir = process.env.VERCEL ? '/tmp' : path.join(__dirname, '..');
 const dbPath = path.join(dbDir, 'kodflix.db');
 
 // Ensure directory exists
-if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+try {
+    if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+    }
+} catch (err) {
+    console.error('Error creating directory:', err);
 }
 
 // Create database connection
-let db;
+let db = null;
+let isInitialized = false;
 
-try {
-    db = new sqlite3.Database(dbPath, (err) => {
-        if (err) {
-            console.error('Error opening database:', err.message);
-        } else {
-            console.log('Connected to SQLite database at:', dbPath);
+const getDb = () => {
+    if (!db) {
+        try {
+            db = new sqlite3.Database(dbPath, (err) => {
+                if (err) {
+                    console.error('Error opening database:', err.message);
+                } else {
+                    console.log('Connected to SQLite database at:', dbPath);
+                }
+            });
+        } catch (error) {
+            console.error('Database connection error:', error);
         }
-    });
-} catch (error) {
-    console.error('Database connection error:', error);
-}
+    }
+    return db;
+};
 
 // Promisify database methods
 const runQuery = (sql, params = []) => {
     return new Promise((resolve, reject) => {
-        db.run(sql, params, function(err) {
+        const database = getDb();
+        if (!database) {
+            reject(new Error('Database not available'));
+            return;
+        }
+        database.run(sql, params, function(err) {
             if (err) reject(err);
             else resolve({ id: this.lastID, changes: this.changes });
         });
@@ -38,7 +53,12 @@ const runQuery = (sql, params = []) => {
 
 const getQuery = (sql, params = []) => {
     return new Promise((resolve, reject) => {
-        db.get(sql, params, (err, row) => {
+        const database = getDb();
+        if (!database) {
+            reject(new Error('Database not available'));
+            return;
+        }
+        database.get(sql, params, (err, row) => {
             if (err) reject(err);
             else resolve(row);
         });
@@ -47,7 +67,12 @@ const getQuery = (sql, params = []) => {
 
 const allQuery = (sql, params = []) => {
     return new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => {
+        const database = getDb();
+        if (!database) {
+            reject(new Error('Database not available'));
+            return;
+        }
+        database.all(sql, params, (err, rows) => {
             if (err) reject(err);
             else resolve(rows);
         });
@@ -55,6 +80,8 @@ const allQuery = (sql, params = []) => {
 };
 
 const initDatabase = async () => {
+    if (isInitialized) return;
+    
     try {
         // Create users table
         await runQuery(`
@@ -80,6 +107,7 @@ const initDatabase = async () => {
             )
         `);
         
+        isInitialized = true;
         console.log('SQLite database tables initialized successfully');
     } catch (error) {
         console.error('Database initialization error:', error.message);
@@ -87,12 +115,12 @@ const initDatabase = async () => {
     }
 };
 
-// Initialize database on module load
-initDatabase().catch(console.error);
-
 // Pool-like interface for compatibility
 const pool = {
     execute: async (sql, params = []) => {
+        // Ensure database is initialized before executing queries
+        await initDatabase();
+        
         if (sql.trim().toLowerCase().startsWith('select')) {
             return [await allQuery(sql, params)];
         } else if (sql.trim().toLowerCase().includes('insert')) {
@@ -105,4 +133,4 @@ const pool = {
     }
 };
 
-module.exports = { pool, initDatabase, db };
+module.exports = { pool, initDatabase, db: getDb };
