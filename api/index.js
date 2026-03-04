@@ -18,12 +18,12 @@ app.use(express.json());
 const authRoutes = require('./auth');
 const movieRoutes = require('./movies');
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/movies', movieRoutes);
+// Routes (without /api prefix - Vercel rewrite handles that)
+app.use('/auth', authRoutes);
+app.use('/movies', movieRoutes);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'KodFlix API is running' });
 });
 
