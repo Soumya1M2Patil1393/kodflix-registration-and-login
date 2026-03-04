@@ -29,14 +29,16 @@ app.get('/health', (req, res) => {
 
 // 404 handler
 app.use((req, res) => {
-    res.status(404).json({ message: 'Route not found' });
+    res.status(404).json({ message: 'Route not found', path: req.path });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({ message: 'Something went wrong!' });
+    res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 
-// For Vercel serverless
-module.exports = app;
+// For Vercel serverless - export the handler
+module.exports = (req, res) => {
+    return app(req, res);
+};
